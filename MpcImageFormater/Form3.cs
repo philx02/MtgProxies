@@ -17,16 +17,13 @@ namespace MpcImageFormater
       InitializeComponent();
     }
 
-    private bool mComfirmed = false;
-
-    public bool Comfirmed
+    public bool UsingProxy
     {
-      get { return mComfirmed; }
+      get { return checkBox2.Checked; }
     }
 
     private void button1_Click(object sender, EventArgs e)
     {
-      mComfirmed = true;
       this.Hide();
     }
 
@@ -38,7 +35,6 @@ namespace MpcImageFormater
 
     private void button2_Click(object sender, EventArgs e)
     {
-      mComfirmed = false;
       this.Hide();
     }
 
@@ -60,6 +56,16 @@ namespace MpcImageFormater
     public string Password
     {
       get { return textBox4.Text; }
+    }
+
+    private void checkBox2_CheckedChanged(object sender, EventArgs e)
+    {
+      panel1.Enabled = UsingProxy;
+    }
+
+    public bool UsingDefaultCredentials
+    {
+      get { return checkBox1.Checked; }
     }
   }
 }

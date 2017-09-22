@@ -18,17 +18,34 @@ namespace MpcImageFormater
   {
     private List<string> mUrls = new List<string>();
     private List<CardsInfo> mCardsInfoList = new List<CardsInfo>();
+    private WebProxy mProxy;
+    private Form3 mForm3 = new Form3();
+    private Form2 mForm2 = new Form2();
 
     public Form1()
     {
       InitializeComponent();
     }
 
+    private string TransformToFileName(string iInput)
+    {
+      char[] wInvalidPathChars = new char[] { '<', '>', ':', '\"', '/', '\\', '|', '?', '*' };
+      foreach (var wInvalidChar in wInvalidPathChars)
+      {
+        iInput = iInput.Replace(wInvalidChar, '_');
+      }
+      return iInput;
+    }
+
     private void button1_Click(object sender, EventArgs e)
     {
-      if (!File.Exists(textBox1.Text))
+      if (!Directory.Exists(textBox1.Text))
       {
         folderBrowserDialog1.ShowDialog();
+        if (folderBrowserDialog1.SelectedPath == string.Empty)
+        {
+          return;
+        }
         textBox1.Text = folderBrowserDialog1.SelectedPath;
       }
       foreach (var wCardsInfo in mCardsInfoList)
@@ -37,7 +54,7 @@ namespace MpcImageFormater
         {
           var wDest = Graphics.FromImage(newBackground);
           wDest.DrawImage(wCardsInfo.mPicBox.Image, 21, 21);
-          newBackground.Save(textBox1.Text + @"\" + wCardsInfo.Name + ".bmp", ImageFormat.Bmp);
+          newBackground.Save(textBox1.Text + @"\" + TransformToFileName(wCardsInfo.Name) + ".bmp", ImageFormat.Bmp);
         }
       }
     }
@@ -62,19 +79,18 @@ namespace MpcImageFormater
 
     private void button2_Click(object sender, EventArgs e)
     {
-      var wForm2 = new Form2();
-      wForm2.ShowDialog();
-      if (!wForm2.Valid)
+      mForm2.ShowDialog();
+      if (!mForm2.Valid)
       {
         return;
       }
+      label1.Visible = true;
+      this.Refresh();
       panel1.Controls.Clear();
       mCardsInfoList.Clear();
-      var wCardList = wForm2.CardList.Split(new string[]{"\r\n"}, StringSplitOptions.RemoveEmptyEntries);
-      var proxy = new WebProxy("proxy.cae.com", 8080);
-      proxy.UseDefaultCredentials = true;
+      var wCardList = mForm2.CardList.Split(new string[]{"\r\n"}, StringSplitOptions.RemoveEmptyEntries);
       var client = new WebClient();
-      client.Proxy = proxy;
+      client.Proxy = mProxy;
       string wCardsNotFound = string.Empty;
       foreach (var wCardName in wCardList)
       {
@@ -125,6 +141,7 @@ namespace MpcImageFormater
       {
         MessageBox.Show(wCardsNotFound, "Cards not found", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
       }
+      label1.Visible = false;
       if (mCardsInfoList.Count > 0)
       {
         button1.Enabled = true;
@@ -167,8 +184,23 @@ namespace MpcImageFormater
 
     private void button3_Click(object sender, EventArgs e)
     {
-      var wForm3 = new Form3();
-      wForm3.ShowDialog();
+      mForm3.ShowDialog();
+      if (mForm3.UsingProxy)
+      {
+        mProxy = new WebProxy(mForm3.Hostname, mForm3.Port);
+        if (mForm3.UsingDefaultCredentials)
+        {
+          mProxy.UseDefaultCredentials = true;
+        }
+        else
+        {
+          mProxy.Credentials = new NetworkCredential(mForm3.Login, mForm3.Password);
+        }
+      }
+      else
+      {
+        mProxy = null;
+      }
     }
   }
 }
