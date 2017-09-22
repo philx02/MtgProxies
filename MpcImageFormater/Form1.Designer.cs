@@ -34,6 +34,7 @@
       this.textBox1 = new System.Windows.Forms.TextBox();
       this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
       this.button3 = new System.Windows.Forms.Button();
+      this.label1 = new System.Windows.Forms.Label();
       this.SuspendLayout();
       // 
       // button1
@@ -82,11 +83,23 @@
       this.button3.UseVisualStyleBackColor = true;
       this.button3.Click += new System.EventHandler(this.button3_Click);
       // 
+      // label1
+      // 
+      this.label1.AutoSize = true;
+      this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 36F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+      this.label1.Location = new System.Drawing.Point(29, 64);
+      this.label1.Name = "label1";
+      this.label1.Size = new System.Drawing.Size(247, 55);
+      this.label1.TabIndex = 0;
+      this.label1.Text = "Fetching...";
+      this.label1.Visible = false;
+      // 
       // Form1
       // 
       this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
       this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
       this.ClientSize = new System.Drawing.Size(839, 735);
+      this.Controls.Add(this.label1);
       this.Controls.Add(this.button3);
       this.Controls.Add(this.textBox1);
       this.Controls.Add(this.panel1);
@@ -108,6 +121,7 @@
     private System.Windows.Forms.TextBox textBox1;
     private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog1;
     private System.Windows.Forms.Button button3;
+    private System.Windows.Forms.Label label1;
   }
 }
 
