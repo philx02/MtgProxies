@@ -18,7 +18,7 @@ namespace MpcImageFormater
   public partial class Form1 : Form
   {
     private List<string> mUrls = new List<string>();
-    private List<CardsInfo> mCardsInfoList = new List<CardsInfo>();
+    private Dictionary<string, CardsInfo> mCardsInfoList = new Dictionary<string, CardsInfo>();
     private WebProxy mProxy;
     private Form3 mForm3 = new Form3();
     private Form2 mForm2 = new Form2();
@@ -54,8 +54,8 @@ namespace MpcImageFormater
         using (Image newBackground = new Bitmap(MpcImageFormater.Properties.Resources.background))
         {
           var wDest = Graphics.FromImage(newBackground);
-          wDest.DrawImage(wCardsInfo.mSelectedImage, 21, 21);
-          newBackground.Save(textBox1.Text + @"\" + TransformToFileName(wCardsInfo.Name) + ".bmp", ImageFormat.Bmp);
+          wDest.DrawImage(wCardsInfo.Value.mSelectedImage, 21, 21);
+          newBackground.Save(textBox1.Text + @"\" + TransformToFileName(wCardsInfo.Value.Name) + ".bmp", ImageFormat.Bmp);
         }
       }
     }
@@ -101,53 +101,53 @@ namespace MpcImageFormater
       this.Refresh();
       panel1.Controls.Clear();
       mCardsInfoList.Clear();
-      var wCardList = mForm2.CardList.Split(new string[]{"\r\n"}, StringSplitOptions.RemoveEmptyEntries);
+      var wCleanedList = mForm2.CardList.Replace("\r", string.Empty).Replace("\n", "|");
       var client = new WebClient();
       client.Proxy = mProxy;
       string wCardsNotFound = string.Empty;
-      foreach (var wCardName in wCardList)
+      CardService wService = new CardService();
+      var wResult = wService.Where(x => x.Name, wCleanedList).All();
+      if (wResult.IsSuccess)
       {
-        CardService wService = new CardService();
-        var wResult = wService.Where(x => x.Name, wCardName).All();
-        var wCardsInfo = new CardsInfo(wCardName);
-        if (wResult.IsSuccess)
+        foreach (var wCard in wResult.Value)
         {
-          foreach (var wCard in wResult.Value)
+          if (wCard.Set == string.Empty || wCard.Number == string.Empty)
           {
-            var wUrl = "https://img.scryfall.com/cards/large/en/" + wCard.Set.ToLower() + "/" + wCard.Number + ".jpg";
-            try
+            continue;
+          }
+          var wUrl = "https://img.scryfall.com/cards/large/en/" + wCard.Set.ToLower() + "/" + wCard.Number + ".jpg";
+          try
+          {
+            var stream = client.OpenRead(wUrl);
+            var wImage = new Bitmap(stream);
+            CardsInfo wCardsInfo;
+            if (!mCardsInfoList.TryGetValue(wCard.Name, out wCardsInfo))
             {
-              var stream = client.OpenRead(wUrl);
-              var wImage = new Bitmap(stream);
-              wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCard.SetName, Value = new SelectionCard(wCardsInfo, wImage) });
-              if (wCardsInfo.mAlternateImages.Count == 1)
-              {
-                wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
-                wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
-                wCardsInfo.mSelectedImage = wImage;
-              }
+              wCardsInfo = new CardsInfo(wCard.Name);
+              var wSelector = new ComboBox();
+              wSelector.DataSource = wCardsInfo.mAlternateImages;
+              wSelector.Left = 130;
+              wSelector.Top = 50;
+              wSelector.Width = 170;
+              wSelector.DisplayMember = "Name";
+              wSelector.ValueMember = "Value";
+              wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
+              wCardsInfo.mPicBox.Controls.Add(wSelector);
+              mCardsInfoList.Add(wCard.Name, wCardsInfo);
             }
-            catch (WebException exc)
+            wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCard.SetName, Value = new SelectionCard(wCardsInfo, wImage) });
+            if (wCardsInfo.mAlternateImages.Count == 1)
             {
-              Console.WriteLine("For URL " + wUrl + ": " + exc.Message);
+              wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
+              wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
+              wCardsInfo.mSelectedImage = wImage;
             }
           }
+          catch (WebException exc)
+          {
+            Console.WriteLine("For URL " + wUrl + ": " + exc.Message);
+          }
         }
-        else
-        {
-          wCardsNotFound += wCardName + "\r\n";
-          continue;
-        }
-        mCardsInfoList.Add(wCardsInfo);
-        var wSelector = new ComboBox();
-        wSelector.DataSource = wCardsInfo.mAlternateImages;
-        wSelector.Left = 130;
-        wSelector.Top = 50;
-        wSelector.Width = 170;
-        wSelector.DisplayMember = "Name";
-        wSelector.ValueMember = "Value";
-        wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
-        wCardsInfo.mPicBox.Controls.Add(wSelector);
       }
       if (wCardsNotFound != string.Empty)
       {
@@ -176,14 +176,14 @@ namespace MpcImageFormater
       int wCurrentHeight = 0;
       foreach (var wCardsInfo in mCardsInfoList)
       {
-        panel1.Controls.Add(wCardsInfo.mPicBox);
-        wCardsInfo.mPicBox.Left = wCurrentWidth;
-        wCardsInfo.mPicBox.Top = wCurrentHeight;
-        wCurrentWidth += wCardsInfo.mPicBox.Width;
-        if (wCurrentWidth + wCardsInfo.mPicBox.Width >= panel1.Width)
+        panel1.Controls.Add(wCardsInfo.Value.mPicBox);
+        wCardsInfo.Value.mPicBox.Left = wCurrentWidth;
+        wCardsInfo.Value.mPicBox.Top = wCurrentHeight;
+        wCurrentWidth += wCardsInfo.Value.mPicBox.Width;
+        if (wCurrentWidth + wCardsInfo.Value.mPicBox.Width >= panel1.Width)
         {
           wCurrentWidth = 0;
-          wCurrentHeight += wCardsInfo.mPicBox.Height;
+          wCurrentHeight += wCardsInfo.Value.mPicBox.Height;
         }
       }
     }
