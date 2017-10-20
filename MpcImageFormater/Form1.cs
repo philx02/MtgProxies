@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Text.RegularExpressions;
+using MtgApiManager.Lib.Service;
 
 namespace MpcImageFormater
 {
@@ -53,7 +54,7 @@ namespace MpcImageFormater
         using (Image newBackground = new Bitmap(MpcImageFormater.Properties.Resources.background))
         {
           var wDest = Graphics.FromImage(newBackground);
-          wDest.DrawImage(wCardsInfo.mPicBox.Image, 21, 21);
+          wDest.DrawImage(wCardsInfo.mSelectedImage, 21, 21);
           newBackground.Save(textBox1.Text + @"\" + TransformToFileName(wCardsInfo.Name) + ".bmp", ImageFormat.Bmp);
         }
       }
@@ -62,10 +63,10 @@ namespace MpcImageFormater
     public class AlternateImage
     {
       public string Name { get; set; }
-      public Image Value { get; set; }
+      public SelectionCard Value { get; set; }
     }
 
-    private class CardsInfo
+    public class CardsInfo
     {
       private string mName;
       public CardsInfo(string iName)
@@ -74,7 +75,19 @@ namespace MpcImageFormater
       }
       public string Name { get { return mName; } }
       public PictureBox mPicBox = new PictureBox();
+      public Image mSelectedImage;
       public List<AlternateImage> mAlternateImages = new List<AlternateImage>();
+    }
+
+    public class SelectionCard
+    {
+      public SelectionCard(CardsInfo iCardsInfo, Image iImage)
+      {
+        mCardsInfoRef = iCardsInfo;
+        mImage = iImage;
+      }
+      public CardsInfo mCardsInfoRef;
+      public Image mImage;
     }
 
     private void button2_Click(object sender, EventArgs e)
@@ -94,34 +107,33 @@ namespace MpcImageFormater
       string wCardsNotFound = string.Empty;
       foreach (var wCardName in wCardList)
       {
-        string wMtgCardInfo = client.DownloadString("https://magiccards.info/query?q=%2B%2Bo%21%22" + WebUtility.UrlEncode(wCardName) + "%22&v=scan");
-        var wRegex = new Regex("/scans/en/.*/.*.jpg");
+        CardService wService = new CardService();
+        var wResult = wService.Where(x => x.Name, wCardName).All();
         var wCardsInfo = new CardsInfo(wCardName);
-        bool wCardFound = false;
-        foreach (Match wMatch in wRegex.Matches(wMtgCardInfo))
+        if (wResult.IsSuccess)
         {
-          wCardFound = true;
-          var wUrl = "https://magiccards.info" + wMatch.Value;
-          try
+          foreach (var wCard in wResult.Value)
           {
-            var stream = client.OpenRead(wUrl);
-            var wImage = new Bitmap(stream);
-            if (wImage.Width != 312)
+            var wUrl = "https://img.scryfall.com/cards/large/en/" + wCard.Set.ToLower() + "/" + wCard.Number + ".jpg";
+            try
             {
-              continue;
+              var stream = client.OpenRead(wUrl);
+              var wImage = new Bitmap(stream);
+              wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCard.SetName, Value = new SelectionCard(wCardsInfo, wImage) });
+              if (wCardsInfo.mAlternateImages.Count == 1)
+              {
+                wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
+                wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
+                wCardsInfo.mSelectedImage = wImage;
+              }
             }
-            wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wMatch.Value.Split(new string[] { "/" }, StringSplitOptions.RemoveEmptyEntries)[2], Value = wImage });
-            if (wCardsInfo.mAlternateImages.Count == 1)
+            catch (WebException exc)
             {
-              wCardsInfo.mPicBox.Image = wImage;
-              wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
+              Console.WriteLine("For URL " + wUrl + ": " + exc.Message);
             }
-          }
-          catch (WebException)
-          {
           }
         }
-        if (!wCardFound)
+        else
         {
           wCardsNotFound += wCardName + "\r\n";
           continue;
@@ -129,9 +141,9 @@ namespace MpcImageFormater
         mCardsInfoList.Add(wCardsInfo);
         var wSelector = new ComboBox();
         wSelector.DataSource = wCardsInfo.mAlternateImages;
-        wSelector.Left = 230;
+        wSelector.Left = 130;
         wSelector.Top = 50;
-        wSelector.Width = 70;
+        wSelector.Width = 170;
         wSelector.DisplayMember = "Name";
         wSelector.ValueMember = "Value";
         wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
@@ -154,7 +166,8 @@ namespace MpcImageFormater
       var wSelector = (ComboBox)sender;
       var wPicBox = (PictureBox)wSelector.Parent;
       var wImage = (AlternateImage)wSelector.SelectedItem;
-      wPicBox.Image = wImage.Value;
+      wPicBox.Image = (Image)(new Bitmap(wImage.Value.mImage, new Size(312, 445)));
+      wImage.Value.mCardsInfoRef.mSelectedImage = wImage.Value.mImage;
     }
 
     private void RefreshCardList()
