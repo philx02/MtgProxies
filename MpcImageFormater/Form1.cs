@@ -51,11 +51,16 @@ namespace MpcImageFormater
       }
       foreach (var wCardsInfo in mCardsInfoList)
       {
-        using (Image newBackground = new Bitmap(MpcImageFormater.Properties.Resources.background))
+        var wBorder = 58;
+        var wTopAdjustment = 5;
+        var wBottomAdjustment = 5;
+        Rectangle cropRect = new Rectangle(24, 24, 624, 888);
+        Bitmap target = new Bitmap(cropRect.Width + wBorder * 2, cropRect.Height + wBorder * 2 + wTopAdjustment + wBottomAdjustment);
+
+        using (Graphics g = Graphics.FromImage(target))
         {
-          var wDest = Graphics.FromImage(newBackground);
-          wDest.DrawImage(wCardsInfo.Value.mSelectedImage, 21, 21);
-          newBackground.Save(textBox1.Text + @"\" + TransformToFileName(wCardsInfo.Value.Name) + ".bmp", ImageFormat.Bmp);
+          g.DrawImage(wCardsInfo.Value.mSelectedImage, new Rectangle(wBorder, wBorder + wTopAdjustment, cropRect.Width, cropRect.Height), cropRect, GraphicsUnit.Pixel);
+          target.Save(textBox1.Text + @"\" + TransformToFileName(wCardsInfo.Value.Name) + ".bmp", ImageFormat.Bmp);
         }
       }
     }
@@ -104,7 +109,7 @@ namespace MpcImageFormater
       var wCleanedList = mForm2.CardList.Replace("\r", string.Empty).Replace("\n", "|");
       var client = new WebClient();
       client.Proxy = mProxy;
-      string wCardsNotFound = string.Empty;
+      var wCardsNotFound = new List<string>(wCleanedList.Split(new char[] {'|'}, StringSplitOptions.RemoveEmptyEntries));
       CardService wService = new CardService();
       var wResult = wService.Where(x => x.Name, wCleanedList).All();
       if (wResult.IsSuccess)
@@ -115,6 +120,7 @@ namespace MpcImageFormater
           {
             continue;
           }
+          wCardsNotFound.Remove(wCard.Name);
           var wUrl = "https://img.scryfall.com/cards/large/en/" + wCard.Set.ToLower() + "/" + wCard.Number + ".jpg";
           try
           {
@@ -149,9 +155,18 @@ namespace MpcImageFormater
           }
         }
       }
-      if (wCardsNotFound != string.Empty)
+      else
       {
-        MessageBox.Show(wCardsNotFound, "Cards not found", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+        MessageBox.Show(wResult.Exception.Message, "API problem", MessageBoxButtons.OK, MessageBoxIcon.Error);
+      }
+      if (wCardsNotFound.Count != 0)
+      {
+        string wCardsNotFoundString = string.Empty;
+        foreach (var wCardNotFound in wCardsNotFound)
+        {
+          wCardsNotFoundString += wCardNotFound + "\r\n";
+        }
+        MessageBox.Show(wCardsNotFoundString, "Cards not found", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
       }
       label1.Visible = false;
       if (mCardsInfoList.Count > 0)
