@@ -13,6 +13,9 @@ using System.Windows.Forms;
 using System.Text.RegularExpressions;
 using MtgApiManager.Lib.Service;
 
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+
 namespace MpcImageFormater
 {
   public partial class Form1 : Form
@@ -51,17 +54,33 @@ namespace MpcImageFormater
       }
       foreach (var wCardsInfo in mCardsInfoList)
       {
-        var wBorder = 58;
-        var wTopAdjustment = 5;
-        var wBottomAdjustment = 5;
-        Rectangle cropRect = new Rectangle(24, 24, 624, 888);
-        Bitmap target = new Bitmap(cropRect.Width + wBorder * 2, cropRect.Height + wBorder * 2 + wTopAdjustment + wBottomAdjustment);
-
-        using (Graphics g = Graphics.FromImage(target))
+        if (wCardsInfo.Value.mSelectedImage.Width == 672)
         {
-          g.DrawImage(wCardsInfo.Value.mSelectedImage, new Rectangle(wBorder, wBorder + wTopAdjustment, cropRect.Width, cropRect.Height), cropRect, GraphicsUnit.Pixel);
-          target.Save(textBox1.Text + @"\" + TransformToFileName(wCardsInfo.Value.Name) + ".bmp", ImageFormat.Bmp);
+          var wBorder = 58;
+          var wTopAdjustment = 5;
+          var wBottomAdjustment = 5;
+          Rectangle cropRect = new Rectangle(24, 24, 624, 888);
+          saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
+        else
+        {
+          var wBorder = 59;
+          var wTopAdjustment = 7;
+          var wBottomAdjustment = 7;
+          Rectangle cropRect = new Rectangle(28, 28, 690, 984);
+          saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
+        }
+      }
+    }
+
+    private void saveImage(int wBorder, int wTopAdjustment, int wBottomAdjustment, Rectangle cropRect, Image iImage, string iName)
+    {
+      Bitmap target = new Bitmap(cropRect.Width + wBorder * 2, cropRect.Height + wBorder * 2 + wTopAdjustment + wBottomAdjustment);
+
+      using (Graphics g = Graphics.FromImage(target))
+      {
+        g.DrawImage(iImage, new Rectangle(wBorder, wBorder + wTopAdjustment, cropRect.Width, cropRect.Height), cropRect, GraphicsUnit.Pixel);
+        target.Save(textBox1.Text + @"\" + TransformToFileName(iName) + ".bmp", ImageFormat.Bmp);
       }
     }
 
@@ -95,6 +114,34 @@ namespace MpcImageFormater
       public Image mImage;
     }
 
+    public class CardJson
+    {
+      public string name;
+      public string set;
+      public string setName;
+      public string number;
+    }
+
+    public class CardJsonList
+    {
+      public CardJson[] cards;
+    }
+
+    private static bool ValidateRemoteCertificate(object sender, X509Certificate cert, X509Chain chain, SslPolicyErrors error)
+    {
+      // If the certificate is a valid, signed certificate, return true.
+      if (error == System.Net.Security.SslPolicyErrors.None)
+      {
+        return true;
+      }
+
+      Console.WriteLine("X509Certificate [{0}] Policy Error: '{1}'",
+          cert.Subject,
+          error.ToString());
+
+      return false;
+    }
+
     private void button2_Click(object sender, EventArgs e)
     {
       mForm2.ShowDialog();
@@ -110,26 +157,31 @@ namespace MpcImageFormater
       var client = new WebClient();
       client.Proxy = mProxy;
       var wCardsNotFound = new List<string>(wCleanedList.Split(new char[] {'|'}, StringSplitOptions.RemoveEmptyEntries));
-      CardService wService = new CardService();
-      var wResult = wService.Where(x => x.Name, wCleanedList).All();
-      if (wResult.IsSuccess)
+
+      ServicePointManager.Expect100Continue = true;
+      ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
+      var wString = client.DownloadString("https://api.magicthegathering.io/v1/cards?name=" + wCleanedList);
+      var wCardJsonList = Newtonsoft.Json.JsonConvert.DeserializeObject<CardJsonList>(wString);
+      
+      if (wCardJsonList.cards.Count() != 0)
       {
-        foreach (var wCard in wResult.Value)
+        foreach (var wCard in wCardJsonList.cards)
         {
-          if (wCard.Set == string.Empty || wCard.Number == string.Empty)
+          if (wCard.set == string.Empty || wCard.number == string.Empty)
           {
             continue;
           }
-          wCardsNotFound.Remove(wCard.Name);
-          var wUrl = "https://img.scryfall.com/cards/large/en/" + wCard.Set.ToLower() + "/" + wCard.Number + ".jpg";
+          wCardsNotFound.Remove(wCard.name);
+          var wUrl = "https://img.scryfall.com/cards/png/en/" + wCard.set.ToLower() + "/" + wCard.number + ".png";
           try
           {
             var stream = client.OpenRead(wUrl);
             var wImage = new Bitmap(stream);
             CardsInfo wCardsInfo;
-            if (!mCardsInfoList.TryGetValue(wCard.Name, out wCardsInfo))
+            if (!mCardsInfoList.TryGetValue(wCard.name, out wCardsInfo))
             {
-              wCardsInfo = new CardsInfo(wCard.Name);
+              wCardsInfo = new CardsInfo(wCard.name);
               var wSelector = new ComboBox();
               wSelector.DataSource = wCardsInfo.mAlternateImages;
               wSelector.Left = 130;
@@ -139,9 +191,9 @@ namespace MpcImageFormater
               wSelector.ValueMember = "Value";
               wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
               wCardsInfo.mPicBox.Controls.Add(wSelector);
-              mCardsInfoList.Add(wCard.Name, wCardsInfo);
+              mCardsInfoList.Add(wCard.name, wCardsInfo);
             }
-            wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCard.SetName, Value = new SelectionCard(wCardsInfo, wImage) });
+            wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCard.setName, Value = new SelectionCard(wCardsInfo, wImage) });
             if (wCardsInfo.mAlternateImages.Count == 1)
             {
               wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
@@ -154,10 +206,6 @@ namespace MpcImageFormater
             Console.WriteLine("For URL " + wUrl + ": " + exc.Message);
           }
         }
-      }
-      else
-      {
-        MessageBox.Show(wResult.Exception.Message, "API problem", MessageBoxButtons.OK, MessageBoxIcon.Error);
       }
       if (wCardsNotFound.Count != 0)
       {
