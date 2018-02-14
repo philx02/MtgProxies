@@ -114,13 +114,18 @@ namespace MpcImageFormater
       public Image mImage;
     }
 
+    public class ImageUris
+    {
+      public string png;
+    }
+
     public class CardJson
     {
       public string name;
       public string set;
-      public string setName;
-      public string number;
+      public string set_name;
       public string layout;
+      public ImageUris image_uris;
     }
 
     public class CardJsonList
@@ -158,7 +163,7 @@ namespace MpcImageFormater
       var client = new WebClient();
       client.Proxy = mProxy;
       var wCardsToFind = new List<string>(wCleanedList.Split(new char[] {'|'}, StringSplitOptions.RemoveEmptyEntries));
-      var wCardsNotFound = wCardsToFind;
+      var wCardsNotFound = new List<string>(wCardsToFind);
 
       ServicePointManager.Expect100Continue = true;
       ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
@@ -166,52 +171,40 @@ namespace MpcImageFormater
       var wString = client.DownloadString("https://api.magicthegathering.io/v1/cards?name=" + wCleanedList);
       var wCardJsonList = Newtonsoft.Json.JsonConvert.DeserializeObject<CardJsonList>(wString);
       
-      if (wCardJsonList.cards.Count() != 0)
+      foreach (var wCardName in wCardsToFind)
       {
-        foreach (var wCard in wCardJsonList.cards)
+        var wCardJson = Newtonsoft.Json.JsonConvert.DeserializeObject<CardJson>(client.DownloadString("https://api.scryfall.com/cards/named?exact=" + wCardName));
+        wCardsNotFound.Remove(wCardName);
+        try
         {
-          if (wCard.set == string.Empty || wCard.number == string.Empty || !wCardsToFind.Contains(wCard.name))
+          var stream = client.OpenRead(wCardJson.image_uris.png);
+          var wImage = new Bitmap(stream);
+          CardsInfo wCardsInfo;
+          if (!mCardsInfoList.TryGetValue(wCardName, out wCardsInfo))
           {
-            continue;
+            wCardsInfo = new CardsInfo(wCardName);
+            var wSelector = new ComboBox();
+            wSelector.DataSource = wCardsInfo.mAlternateImages;
+            wSelector.Left = 130;
+            wSelector.Top = 50;
+            wSelector.Width = 170;
+            wSelector.DisplayMember = "Name";
+            wSelector.ValueMember = "Value";
+            wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
+            wCardsInfo.mPicBox.Controls.Add(wSelector);
+            mCardsInfoList.Add(wCardName, wCardsInfo);
           }
-          wCardsNotFound.Remove(wCard.name);
-          var wCardNumber = wCard.number;
-          if (wCard.layout == "aftermath")
+          wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCardJson.set_name, Value = new SelectionCard(wCardsInfo, wImage) });
+          if (wCardsInfo.mAlternateImages.Count == 1)
           {
-            wCardNumber = wCardNumber.TrimEnd(new char[] { 'a', 'b' });
+            wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
+            wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
+            wCardsInfo.mSelectedImage = wImage;
           }
-          var wUrl = "https://img.scryfall.com/cards/png/en/" + wCard.set.ToLower() + "/" + wCardNumber + ".png";
-          try
-          {
-            var stream = client.OpenRead(wUrl);
-            var wImage = new Bitmap(stream);
-            CardsInfo wCardsInfo;
-            if (!mCardsInfoList.TryGetValue(wCard.name, out wCardsInfo))
-            {
-              wCardsInfo = new CardsInfo(wCard.name);
-              var wSelector = new ComboBox();
-              wSelector.DataSource = wCardsInfo.mAlternateImages;
-              wSelector.Left = 130;
-              wSelector.Top = 50;
-              wSelector.Width = 170;
-              wSelector.DisplayMember = "Name";
-              wSelector.ValueMember = "Value";
-              wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
-              wCardsInfo.mPicBox.Controls.Add(wSelector);
-              mCardsInfoList.Add(wCard.name, wCardsInfo);
-            }
-            wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCard.setName, Value = new SelectionCard(wCardsInfo, wImage) });
-            if (wCardsInfo.mAlternateImages.Count == 1)
-            {
-              wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
-              wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
-              wCardsInfo.mSelectedImage = wImage;
-            }
-          }
-          catch (WebException exc)
-          {
-            Console.WriteLine("For URL " + wUrl + ": " + exc.Message);
-          }
+        }
+        catch (WebException exc)
+        {
+          Console.WriteLine("For URL " + wCardJson.image_uris.png + ": " + exc.Message);
         }
       }
       if (wCardsNotFound.Count != 0)
