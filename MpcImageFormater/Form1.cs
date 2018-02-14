@@ -56,17 +56,17 @@ namespace MpcImageFormater
       {
         if (wCardsInfo.Value.mSelectedImage.Width == 672)
         {
-          var wBorder = 58;
-          var wTopAdjustment = 5;
-          var wBottomAdjustment = 5;
+          var wBorder = 60;
+          var wTopAdjustment = 6;
+          var wBottomAdjustment = 6;
           Rectangle cropRect = new Rectangle(24, 24, 624, 888);
           saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
         else
         {
-          var wBorder = 59;
-          var wTopAdjustment = 7;
-          var wBottomAdjustment = 7;
+          var wBorder = 62;
+          var wTopAdjustment = 8;
+          var wBottomAdjustment = 8;
           Rectangle cropRect = new Rectangle(28, 28, 690, 984);
           saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
@@ -120,6 +120,7 @@ namespace MpcImageFormater
       public string set;
       public string setName;
       public string number;
+      public string layout;
     }
 
     public class CardJsonList
@@ -156,7 +157,8 @@ namespace MpcImageFormater
       var wCleanedList = mForm2.CardList.Replace("\r", string.Empty).Replace("\n", "|");
       var client = new WebClient();
       client.Proxy = mProxy;
-      var wCardsNotFound = new List<string>(wCleanedList.Split(new char[] {'|'}, StringSplitOptions.RemoveEmptyEntries));
+      var wCardsToFind = new List<string>(wCleanedList.Split(new char[] {'|'}, StringSplitOptions.RemoveEmptyEntries));
+      var wCardsNotFound = wCardsToFind;
 
       ServicePointManager.Expect100Continue = true;
       ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
@@ -168,12 +170,17 @@ namespace MpcImageFormater
       {
         foreach (var wCard in wCardJsonList.cards)
         {
-          if (wCard.set == string.Empty || wCard.number == string.Empty)
+          if (wCard.set == string.Empty || wCard.number == string.Empty || !wCardsToFind.Contains(wCard.name))
           {
             continue;
           }
           wCardsNotFound.Remove(wCard.name);
-          var wUrl = "https://img.scryfall.com/cards/png/en/" + wCard.set.ToLower() + "/" + wCard.number + ".png";
+          var wCardNumber = wCard.number;
+          if (wCard.layout == "aftermath")
+          {
+            wCardNumber = wCardNumber.TrimEnd(new char[] { 'a', 'b' });
+          }
+          var wUrl = "https://img.scryfall.com/cards/png/en/" + wCard.set.ToLower() + "/" + wCardNumber + ".png";
           try
           {
             var stream = client.OpenRead(wUrl);
