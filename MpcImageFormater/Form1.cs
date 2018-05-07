@@ -21,7 +21,7 @@ namespace MpcImageFormater
   public partial class Form1 : Form
   {
     private List<string> mUrls = new List<string>();
-    private Dictionary<string, CardsInfo> mCardsInfoList = new Dictionary<string, CardsInfo>();
+    private Dictionary<string, CardInfo> mCardsInfoList = new Dictionary<string, CardInfo>();
     private WebProxy mProxy;
     private Form3 mForm3 = new Form3();
     private Form2 mForm2 = new Form2();
@@ -67,8 +67,9 @@ namespace MpcImageFormater
           var wBorder = 62;
           var wTopAdjustment = 8;
           var wBottomAdjustment = 8;
-          Rectangle cropRect = new Rectangle(28, 28, 690, 984);
-          saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
+          //Rectangle cropRect = new Rectangle(28, 28, 690, 984);
+          Rectangle cropRect = new Rectangle(28, 28, 690, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 961 : 942);
+          saveImage(wBorder, wTopAdjustment, wBottomAdjustment + (wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 23 : 42), cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
       }
     }
@@ -90,27 +91,30 @@ namespace MpcImageFormater
       public SelectionCard Value { get; set; }
     }
 
-    public class CardsInfo
+    public class CardInfo
     {
       private string mName;
-      public CardsInfo(string iName)
+      public CardInfo(string iName, BottomStyle iBottomStyle)
       {
         mName = iName;
+        mBottomStyle = iBottomStyle;
       }
       public string Name { get { return mName; } }
       public PictureBox mPicBox = new PictureBox();
       public Image mSelectedImage;
       public List<AlternateImage> mAlternateImages = new List<AlternateImage>();
+      public enum BottomStyle { Narrow, Wide };
+      public BottomStyle mBottomStyle;
     }
 
     public class SelectionCard
     {
-      public SelectionCard(CardsInfo iCardsInfo, Image iImage)
+      public SelectionCard(CardInfo iCardsInfo, Image iImage)
       {
         mCardsInfoRef = iCardsInfo;
         mImage = iImage;
       }
-      public CardsInfo mCardsInfoRef;
+      public CardInfo mCardsInfoRef;
       public Image mImage;
     }
 
@@ -119,13 +123,22 @@ namespace MpcImageFormater
       public string png;
     }
 
+    public class CardFaces
+    {
+      public string name;
+      public string type_line;
+      public ImageUris image_uris;
+    }
+
     public class CardJson
     {
       public string name;
       public string set;
       public string set_name;
       public string layout;
+      public string type_line;
       public ImageUris image_uris;
+      public CardFaces[] card_faces;
     }
 
     public class CardJsonList
@@ -148,6 +161,34 @@ namespace MpcImageFormater
       return false;
     }
 
+    private void AddCard(WebClient client, string png_url, string wCardName, string set_name, CardInfo.BottomStyle bottom_style)
+    {
+      var stream = client.OpenRead(png_url);
+      var wImage = new Bitmap(stream);
+      CardInfo wCardsInfo;
+      if (!mCardsInfoList.TryGetValue(wCardName, out wCardsInfo))
+      {
+        wCardsInfo = new CardInfo(wCardName, bottom_style);
+        var wSelector = new ComboBox();
+        wSelector.DataSource = wCardsInfo.mAlternateImages;
+        wSelector.Left = 130;
+        wSelector.Top = 50;
+        wSelector.Width = 170;
+        wSelector.DisplayMember = "Name";
+        wSelector.ValueMember = "Value";
+        wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
+        wCardsInfo.mPicBox.Controls.Add(wSelector);
+        mCardsInfoList.Add(wCardName, wCardsInfo);
+      }
+      wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = set_name, Value = new SelectionCard(wCardsInfo, wImage) });
+      if (wCardsInfo.mAlternateImages.Count == 1)
+      {
+        wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
+        wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
+        wCardsInfo.mSelectedImage = wImage;
+      }
+    }
+
     private void button2_Click(object sender, EventArgs e)
     {
       mForm2.ShowDialog();
@@ -167,44 +208,32 @@ namespace MpcImageFormater
 
       ServicePointManager.Expect100Continue = true;
       ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-
-      var wString = client.DownloadString("https://api.magicthegathering.io/v1/cards?name=" + wCleanedList);
-      var wCardJsonList = Newtonsoft.Json.JsonConvert.DeserializeObject<CardJsonList>(wString);
       
       foreach (var wCardName in wCardsToFind)
       {
-        var wCardJson = Newtonsoft.Json.JsonConvert.DeserializeObject<CardJson>(client.DownloadString("https://api.scryfall.com/cards/named?exact=" + wCardName));
-        wCardsNotFound.Remove(wCardName);
         try
         {
-          var stream = client.OpenRead(wCardJson.image_uris.png);
-          var wImage = new Bitmap(stream);
-          CardsInfo wCardsInfo;
-          if (!mCardsInfoList.TryGetValue(wCardName, out wCardsInfo))
+          var wCardJson = Newtonsoft.Json.JsonConvert.DeserializeObject<CardJson>(client.DownloadString("https://api.scryfall.com/cards/named?exact=" + wCardName));
+          wCardsNotFound.Remove(wCardName);
+          if (wCardJson.image_uris == null)
           {
-            wCardsInfo = new CardsInfo(wCardName);
-            var wSelector = new ComboBox();
-            wSelector.DataSource = wCardsInfo.mAlternateImages;
-            wSelector.Left = 130;
-            wSelector.Top = 50;
-            wSelector.Width = 170;
-            wSelector.DisplayMember = "Name";
-            wSelector.ValueMember = "Value";
-            wSelector.SelectedIndexChanged += new System.EventHandler(this.SelectionChange);
-            wCardsInfo.mPicBox.Controls.Add(wSelector);
-            mCardsInfoList.Add(wCardName, wCardsInfo);
+            if (wCardJson.card_faces.Length == 2)
+            {
+              var wBottomStyle = wCardJson.card_faces[0].type_line.Contains("Creature") || wCardJson.card_faces[0].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
+              AddCard(client, wCardJson.card_faces[0].image_uris.png, wCardJson.card_faces[0].name, wCardJson.set_name, wBottomStyle);
+              wBottomStyle = wCardJson.card_faces[1].type_line.Contains("Creature") || wCardJson.card_faces[1].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
+              AddCard(client, wCardJson.card_faces[1].image_uris.png, wCardJson.card_faces[1].name, wCardJson.set_name, wBottomStyle);
+            }
           }
-          wCardsInfo.mAlternateImages.Add(new AlternateImage() { Name = wCardJson.set_name, Value = new SelectionCard(wCardsInfo, wImage) });
-          if (wCardsInfo.mAlternateImages.Count == 1)
+          else
           {
-            wCardsInfo.mPicBox.Image = (Image)(new Bitmap(wImage, new Size(312, 445)));
-            wCardsInfo.mPicBox.Size = wCardsInfo.mPicBox.Image.Size;
-            wCardsInfo.mSelectedImage = wImage;
+            var wBottomStyle = wCardJson.layout != "split" && (wCardJson.type_line.Contains("Creature") || wCardJson.type_line.Contains("Planeswalker")) ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
+            AddCard(client, wCardJson.image_uris.png, wCardName, wCardJson.set_name, wBottomStyle);
           }
         }
         catch (WebException exc)
         {
-          Console.WriteLine("For URL " + wCardJson.image_uris.png + ": " + exc.Message);
+          Console.WriteLine("For card " + wCardName + ": " + exc.Message);
         }
       }
       if (wCardsNotFound.Count != 0)
