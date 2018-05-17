@@ -28,7 +28,6 @@
     /// </summary>
     private void InitializeComponent()
     {
-      System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form2));
       this.textBox1 = new System.Windows.Forms.TextBox();
       this.button1 = new System.Windows.Forms.Button();
       this.button2 = new System.Windows.Forms.Button();
@@ -43,7 +42,7 @@
       this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Both;
       this.textBox1.Size = new System.Drawing.Size(360, 837);
       this.textBox1.TabIndex = 0;
-      this.textBox1.Text = resources.GetString("textBox1.Text");
+      this.textBox1.Text = "Lyra Dawnbringer";
       // 
       // button1
       // 
