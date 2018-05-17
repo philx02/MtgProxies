@@ -60,27 +60,41 @@ namespace MpcImageFormater
           var wTopAdjustment = 6;
           var wBottomAdjustment = 6;
           Rectangle cropRect = new Rectangle(24, 24, 624, 888);
-          saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
+          Rectangle blackRect = new Rectangle(500, 400, 200, 50);
+          saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, blackRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
+        }
+        else if (wCardsInfo.Value.mNewLegendaryBorders)
+        {
+          var wBorder = 54;
+          var wTopAdjustment = 8;
+          var wBottomAdjustment = 16;
+          Rectangle cropRect = new Rectangle(20, 18, 706, 992);
+          Rectangle blackRect = new Rectangle(460, 1035, 350, 30);
+          saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, blackRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
         else
         {
           var wBorder = 62;
           var wTopAdjustment = 8;
           var wBottomAdjustment = 8;
-          //Rectangle cropRect = new Rectangle(28, 28, 690, 984);
-          Rectangle cropRect = new Rectangle(28, 28, 690, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 961 : 942);
-          saveImage(wBorder, wTopAdjustment, wBottomAdjustment + (wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 23 : 42), cropRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
+          Rectangle cropRect = new Rectangle(28, 28, 690, 984);
+          Rectangle blackRect = new Rectangle(460, 1015, 350, 50);
+          //Rectangle cropRect = new Rectangle(28, 28, 690, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 961 : 942);
+          saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, blackRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
       }
     }
 
-    private void saveImage(int wBorder, int wTopAdjustment, int wBottomAdjustment, Rectangle cropRect, Image iImage, string iName)
+    private void saveImage(int wBorder, int wTopAdjustment, int wBottomAdjustment, Rectangle cropRect, Rectangle blackRect, Image iImage, string iName)
     {
       Bitmap target = new Bitmap(cropRect.Width + wBorder * 2, cropRect.Height + wBorder * 2 + wTopAdjustment + wBottomAdjustment);
+      var pixel = target.GetPixel(450, 1035);
+      var brush = new SolidBrush(pixel);
 
       using (Graphics g = Graphics.FromImage(target))
       {
         g.DrawImage(iImage, new Rectangle(wBorder, wBorder + wTopAdjustment, cropRect.Width, cropRect.Height), cropRect, GraphicsUnit.Pixel);
+        g.FillRectangle(brush, blackRect);
         target.Save(textBox1.Text + @"\" + TransformToFileName(iName) + ".bmp", ImageFormat.Bmp);
       }
     }
@@ -94,10 +108,11 @@ namespace MpcImageFormater
     public class CardInfo
     {
       private string mName;
-      public CardInfo(string iName, BottomStyle iBottomStyle)
+      public CardInfo(string iName, BottomStyle iBottomStyle, bool iNewLegendaryBorder)
       {
         mName = iName;
         mBottomStyle = iBottomStyle;
+        mNewLegendaryBorders = iNewLegendaryBorder;
       }
       public string Name { get { return mName; } }
       public PictureBox mPicBox = new PictureBox();
@@ -105,6 +120,7 @@ namespace MpcImageFormater
       public List<AlternateImage> mAlternateImages = new List<AlternateImage>();
       public enum BottomStyle { Narrow, Wide };
       public BottomStyle mBottomStyle;
+      public bool mNewLegendaryBorders;
     }
 
     public class SelectionCard
@@ -161,14 +177,14 @@ namespace MpcImageFormater
       return false;
     }
 
-    private void AddCard(WebClient client, string png_url, string wCardName, string set_name, CardInfo.BottomStyle bottom_style)
+    private void AddCard(WebClient client, string png_url, string wCardName, string set_name, CardInfo.BottomStyle bottom_style, bool iNewLegendaryBorder)
     {
       var stream = client.OpenRead(png_url);
       var wImage = new Bitmap(stream);
       CardInfo wCardsInfo;
       if (!mCardsInfoList.TryGetValue(wCardName, out wCardsInfo))
       {
-        wCardsInfo = new CardInfo(wCardName, bottom_style);
+        wCardsInfo = new CardInfo(wCardName, bottom_style, iNewLegendaryBorder);
         var wSelector = new ComboBox();
         wSelector.DataSource = wCardsInfo.mAlternateImages;
         wSelector.Left = 130;
@@ -220,15 +236,18 @@ namespace MpcImageFormater
             if (wCardJson.card_faces.Length == 2)
             {
               var wBottomStyle = wCardJson.card_faces[0].type_line.Contains("Creature") || wCardJson.card_faces[0].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
-              AddCard(client, wCardJson.card_faces[0].image_uris.png, wCardJson.card_faces[0].name, wCardJson.set_name, wBottomStyle);
+              var wNewLegendaryBorder = wCardJson.card_faces[0].type_line.Contains("Legendary");
+              AddCard(client, wCardJson.card_faces[0].image_uris.png, wCardJson.card_faces[0].name, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
               wBottomStyle = wCardJson.card_faces[1].type_line.Contains("Creature") || wCardJson.card_faces[1].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
-              AddCard(client, wCardJson.card_faces[1].image_uris.png, wCardJson.card_faces[1].name, wCardJson.set_name, wBottomStyle);
+              wNewLegendaryBorder = wCardJson.card_faces[0].type_line.Contains("Legendary");
+              AddCard(client, wCardJson.card_faces[1].image_uris.png, wCardJson.card_faces[1].name, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
             }
           }
           else
           {
             var wBottomStyle = wCardJson.layout != "split" && (wCardJson.type_line.Contains("Creature") || wCardJson.type_line.Contains("Planeswalker")) ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
-            AddCard(client, wCardJson.image_uris.png, wCardName, wCardJson.set_name, wBottomStyle);
+            var wNewLegendaryBorder = wCardJson.type_line.Contains("Legendary");
+            AddCard(client, wCardJson.image_uris.png, wCardName, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
           }
         }
         catch (WebException exc)
