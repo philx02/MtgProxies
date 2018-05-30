@@ -69,7 +69,7 @@ namespace MpcImageFormater
           var wTopAdjustment = 8;
           var wBottomAdjustment = 16;
           Rectangle cropRect = new Rectangle(20, 18, 706, 992);
-          Rectangle blackRect = new Rectangle(460, 1035, 350, 30);
+          Rectangle blackRect = new Rectangle(460, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 1035 : 1010, 300, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 18 : 28);
           saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, blackRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
         else
@@ -78,7 +78,7 @@ namespace MpcImageFormater
           var wTopAdjustment = 8;
           var wBottomAdjustment = 8;
           Rectangle cropRect = new Rectangle(28, 28, 690, 984);
-          Rectangle blackRect = new Rectangle(460, 1015, 350, 50);
+          Rectangle blackRect = new Rectangle(460, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 1025 : 1015, 290, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 28 : 38);
           //Rectangle cropRect = new Rectangle(28, 28, 690, wCardsInfo.Value.mBottomStyle == CardInfo.BottomStyle.Narrow ? 961 : 942);
           saveImage(wBorder, wTopAdjustment, wBottomAdjustment, cropRect, blackRect, wCardsInfo.Value.mSelectedImage, wCardsInfo.Value.Name);
         }
@@ -88,12 +88,12 @@ namespace MpcImageFormater
     private void saveImage(int wBorder, int wTopAdjustment, int wBottomAdjustment, Rectangle cropRect, Rectangle blackRect, Image iImage, string iName)
     {
       Bitmap target = new Bitmap(cropRect.Width + wBorder * 2, cropRect.Height + wBorder * 2 + wTopAdjustment + wBottomAdjustment);
-      var pixel = target.GetPixel(450, 1035);
-      var brush = new SolidBrush(pixel);
 
       using (Graphics g = Graphics.FromImage(target))
       {
         g.DrawImage(iImage, new Rectangle(wBorder, wBorder + wTopAdjustment, cropRect.Width, cropRect.Height), cropRect, GraphicsUnit.Pixel);
+        var pixel = target.GetPixel(450, 1035);
+        var brush = new SolidBrush(pixel);
         g.FillRectangle(brush, blackRect);
         target.Save(textBox1.Text + @"\" + TransformToFileName(iName) + ".bmp", ImageFormat.Bmp);
       }
