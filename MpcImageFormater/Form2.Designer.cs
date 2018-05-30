@@ -42,7 +42,7 @@
       this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Both;
       this.textBox1.Size = new System.Drawing.Size(360, 837);
       this.textBox1.TabIndex = 0;
-      this.textBox1.Text = "Rhonas the Indomitable";
+      this.textBox1.Text = "Lyra Dawnbringer";
       // 
       // button1
       // 
