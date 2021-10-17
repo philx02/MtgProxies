@@ -216,7 +216,7 @@ namespace MpcImageFormater
       }
       var wCardDb = await Task.Run(() => { return JsonConvert.DeserializeObject<CardJson[]>(File.ReadAllText(wCacheFile)); });
 
-      foreach (var wCardName in wCardsToFind)
+      foreach (var wCardName in wCardsToFind.Distinct())
       {
         try
         {
