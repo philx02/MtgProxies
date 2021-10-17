@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
+using Newtonsoft.Json;
 
 namespace MpcImageFormater
 {
@@ -145,6 +146,12 @@ namespace MpcImageFormater
       public ImageUris image_uris;
     }
 
+    public class BulkData
+    {
+      public string name { get; set; }
+      public string download_uri { get; set; }
+    }
+
     public class CardJson
     {
       public string name;
@@ -223,30 +230,45 @@ namespace MpcImageFormater
 
       ServicePointManager.Expect100Continue = true;
       ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-      
+
+      var wBulkData = JsonConvert.DeserializeObject<BulkData>(client.DownloadString("https://api.scryfall.com/bulk-data/default-cards"));
+      var wFilename = (new Uri(wBulkData.download_uri)).Segments.Last();
+      var wCacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MpcImageFormater");
+      Directory.CreateDirectory(wCacheFolder);
+      var wCacheFile = Path.Combine(wCacheFolder, (new Uri(wBulkData.download_uri)).Segments.Last());
+      if (!File.Exists(wCacheFile))
+      {
+        Directory.EnumerateDirectories(wCacheFolder).ToList().ForEach(x => Directory.Delete(x, true));
+        Directory.EnumerateFiles(wCacheFolder).ToList().ForEach(x => File.Delete(x));
+        client.DownloadFile(wBulkData.download_uri, wCacheFile);
+      }
+      var wCardDb = JsonConvert.DeserializeObject<CardJson[]>(File.ReadAllText(wCacheFile));
+
       foreach (var wCardName in wCardsToFind)
       {
         try
         {
-          var wCardJson = Newtonsoft.Json.JsonConvert.DeserializeObject<CardJson>(client.DownloadString("https://api.scryfall.com/cards/named?exact=" + wCardName));
-          wCardsNotFound.Remove(wCardName);
-          if (wCardJson.image_uris == null)
+          foreach (var wCardJson in wCardDb.Where(x => x.name == wCardName || (x.card_faces != null && x.card_faces.First().name == wCardName)))
           {
-            if (wCardJson.card_faces.Length == 2)
+            wCardsNotFound.Remove(wCardName);
+            if (wCardJson.image_uris == null)
             {
-              var wBottomStyle = wCardJson.card_faces[0].type_line.Contains("Creature") || wCardJson.card_faces[0].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
-              var wNewLegendaryBorder = wCardJson.card_faces[0].type_line.Contains("Legendary");
-              AddCard(client, wCardJson.card_faces[0].image_uris.png, wCardJson.card_faces[0].name, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
-              wBottomStyle = wCardJson.card_faces[1].type_line.Contains("Creature") || wCardJson.card_faces[1].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
-              wNewLegendaryBorder = wCardJson.card_faces[0].type_line.Contains("Legendary");
-              AddCard(client, wCardJson.card_faces[1].image_uris.png, wCardJson.card_faces[1].name, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
+              if (wCardJson.card_faces.Length == 2)
+              {
+                var wBottomStyle = wCardJson.card_faces[0].type_line.Contains("Creature") || wCardJson.card_faces[0].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
+                var wNewLegendaryBorder = wCardJson.card_faces[0].type_line.Contains("Legendary");
+                AddCard(client, wCardJson.card_faces[0].image_uris.png, wCardJson.card_faces[0].name, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
+                wBottomStyle = wCardJson.card_faces[1].type_line.Contains("Creature") || wCardJson.card_faces[1].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
+                wNewLegendaryBorder = wCardJson.card_faces[0].type_line.Contains("Legendary");
+                AddCard(client, wCardJson.card_faces[1].image_uris.png, wCardJson.card_faces[1].name, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
+              }
             }
-          }
-          else
-          {
-            var wBottomStyle = wCardJson.layout != "split" && (wCardJson.type_line.Contains("Creature") || wCardJson.type_line.Contains("Planeswalker")) ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
-            var wNewLegendaryBorder = wCardJson.type_line.Contains("Legendary");
-            AddCard(client, wCardJson.image_uris.png, wCardName, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
+            else
+            {
+              var wBottomStyle = wCardJson.layout != "split" && (wCardJson.type_line.Contains("Creature") || wCardJson.type_line.Contains("Planeswalker")) ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
+              var wNewLegendaryBorder = wCardJson.type_line.Contains("Legendary");
+              AddCard(client, wCardJson.image_uris.png, wCardName, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
+            }
           }
         }
         catch (WebException exc)
