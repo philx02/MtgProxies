@@ -1,26 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Text.RegularExpressions;
-
-using System.Net.Security;
-using System.Security.Cryptography.X509Certificates;
 using Newtonsoft.Json;
 
 namespace MpcImageFormater
 {
   public partial class Form1 : Form
   {
-    private List<string> mUrls = new List<string>();
     private Dictionary<string, CardInfo> mCardsInfoList = new Dictionary<string, CardInfo>();
     private WebProxy mProxy;
     private Form3 mForm3 = new Form3();
@@ -148,7 +141,6 @@ namespace MpcImageFormater
 
     public class BulkData
     {
-      public string name { get; set; }
       public string download_uri { get; set; }
     }
 
@@ -161,26 +153,6 @@ namespace MpcImageFormater
       public string type_line;
       public ImageUris image_uris;
       public CardFaces[] card_faces;
-    }
-
-    public class CardJsonList
-    {
-      public CardJson[] cards;
-    }
-
-    private static bool ValidateRemoteCertificate(object sender, X509Certificate cert, X509Chain chain, SslPolicyErrors error)
-    {
-      // If the certificate is a valid, signed certificate, return true.
-      if (error == System.Net.Security.SslPolicyErrors.None)
-      {
-        return true;
-      }
-
-      Console.WriteLine("X509Certificate [{0}] Policy Error: '{1}'",
-          cert.Subject,
-          error.ToString());
-
-      return false;
     }
 
     private void AddCard(WebClient client, string png_url, string wCardName, string set_name, CardInfo.BottomStyle bottom_style, bool iNewLegendaryBorder)
@@ -211,7 +183,7 @@ namespace MpcImageFormater
       }
     }
 
-    private void button2_Click(object sender, EventArgs e)
+    private async void button2_Click(object sender, EventArgs e)
     {
       mForm2.ShowDialog();
       if (!mForm2.Valid)
@@ -240,9 +212,9 @@ namespace MpcImageFormater
       {
         Directory.EnumerateDirectories(wCacheFolder).ToList().ForEach(x => Directory.Delete(x, true));
         Directory.EnumerateFiles(wCacheFolder).ToList().ForEach(x => File.Delete(x));
-        client.DownloadFile(wBulkData.download_uri, wCacheFile);
+        await Task.Run(() => { client.DownloadFile(wBulkData.download_uri, wCacheFile); });
       }
-      var wCardDb = JsonConvert.DeserializeObject<CardJson[]>(File.ReadAllText(wCacheFile));
+      var wCardDb = await Task.Run(() => { return JsonConvert.DeserializeObject<CardJson[]>(File.ReadAllText(wCacheFile)); });
 
       foreach (var wCardName in wCardsToFind)
       {
