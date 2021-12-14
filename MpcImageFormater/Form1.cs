@@ -227,6 +227,10 @@ namespace MpcImageFormater
             {
               if (wCardJson.card_faces.Length == 2)
               {
+                if (wCardJson.card_faces[0].image_uris == null)
+                {
+                  continue;
+                }
                 var wBottomStyle = wCardJson.card_faces[0].type_line.Contains("Creature") || wCardJson.card_faces[0].type_line.Contains("Planeswalker") ? CardInfo.BottomStyle.Narrow : CardInfo.BottomStyle.Wide;
                 var wNewLegendaryBorder = wCardJson.card_faces[0].type_line.Contains("Legendary");
                 AddCard(client, wCardJson.card_faces[0].image_uris.png, wCardJson.card_faces[0].name, wCardJson.set_name, wBottomStyle, wNewLegendaryBorder);
